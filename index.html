@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>账号登录云端打卡：炁 & 拳（维/辛/宇）</title>
+
+  <!-- Supabase JS (v2) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121a33; --text:#e9ecf5; --muted:#a9b2d0;
+      --ok:#27d07d; --warn:#ffcc66; --bad:#ff6b6b;
+      --line:rgba(255,255,255,.08);
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; padding:16px; color:var(--text);
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(72,106,255,.35), transparent 55%),
+                  radial-gradient(900px 500px at 100% 0%, rgba(255,94,141,.25), transparent 50%),
+                  var(--bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC","Microsoft YaHei", Arial;
+    }
+    .wrap{max-width:980px;margin:0 auto}
+    header{
+      position:sticky; top:0; z-index:10;
+      background: linear-gradient(to bottom, rgba(11,16,32,.92), rgba(11,16,32,.70));
+      backdrop-filter: blur(10px);
+      padding:14px 0 12px; margin-bottom:14px;
+      border-bottom:1px solid var(--line);
+    }
+    h1{font-size:18px;margin:0}
+    .sub{color:var(--muted);font-size:13px;margin-top:6px}
+    .row{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+    .btn{
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(43,58,122,.95), rgba(31,42,90,.95));
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:700;
+      font-size:13px;
+      box-shadow: 0 8px 16px rgba(0,0,0,.25);
+      user-select:none; -webkit-tap-highlight-color: transparent;
+    }
+    .btn.secondary{background: rgba(255,255,255,.05); box-shadow:none;}
+    .btn.danger{background: rgba(255,107,107,.12); border-color: rgba(255,107,107,.35);}
+    .pill{
+      background: rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      padding:10px 12px; border-radius:999px;
+      font-size:13px; display:flex; gap:8px; align-items:center;
+    }
+    .grid{display:grid; grid-template-columns: repeat(12, 1fr); gap:12px;}
+    .card{
+      grid-column: span 12;
+      background: linear-gradient(180deg, rgba(18,26,51,.95), rgba(15,23,48,.95));
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding:14px;
+    }
+    .user{display:flex;gap:10px;align-items:center;min-width:210px;}
+    .avatar{
+      width:38px;height:38px;border-radius:14px;display:grid;place-items:center;
+      background: linear-gradient(135deg, rgba(72,106,255,.35), rgba(255,94,141,.25));
+      border:1px solid var(--line);
+      font-weight:900;
+    }
+    .uname{font-weight:900;font-size:16px}
+    .chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .chip{
+      background: rgba(255,255,255,.05);
+      border:1px solid var(--line);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      color:var(--muted);
+      display:flex; gap:8px; align-items:center;
+      white-space:nowrap;
+    }
+    .chip strong{color:var(--text)}
+    .status{
+      font-weight:900; padding:6px 10px; border-radius:999px;
+      border:1px solid var(--line); background: rgba(255,255,255,.05); font-size:12px;
+    }
+    .status.ok{color:var(--ok); border-color: rgba(39,208,125,.35); background: rgba(39,208,125,.10)}
+    .status.warn{color:var(--warn); border-color: rgba(255,204,102,.35); background: rgba(255,204,102,.10)}
+    .status.bad{color:var(--bad); border-color: rgba(255,107,107,.35); background: rgba(255,107,107,.10)}
+    .block{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px;border-top:1px dashed var(--line);padding-top:12px;}
+    .proj{
+      display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+      padding:10px 12px;border-radius:14px;border:1px solid var(--line);background: rgba(255,255,255,.03);
+    }
+    .proj .left{display:flex;flex-direction:column;gap:4px;min-width:220px;}
+    .proj .pname{font-weight:900}
+    .proj .hint{color:var(--muted);font-size:12px}
+    .proj .right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
+    .count{
+      background: rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      padding:8px 10px;
+      border-radius:12px;
+      min-width: 110px;
+      text-align:center;
+      font-weight:900;
+    }
+    .toast{
+      position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+      background: rgba(0,0,0,.55);
+      border: 1px solid rgba(255,255,255,.18);
+      color: var(--text); padding: 10px 12px; border-radius: 999px;
+      font-size: 13px; backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      opacity: 0; pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+      max-width: min(560px, calc(100% - 24px));
+      text-align:center;
+      z-index: 9999;
+    }
+    .toast.show{opacity:1; transform: translateX(-50%) translateY(-4px);}
+
+    .modal{
+      position: fixed; inset: 0; display:none; place-items:center;
+      background: rgba(0,0,0,.55); z-index: 9998;
+      padding: 16px;
+    }
+    .modal.show{display:grid;}
+    .panel{
+      width: min(520px, 100%);
+      background: rgba(18,26,51,.98);
+      border:1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+    .panel h2{margin:0;font-size:16px}
+    .panel p{margin:8px 0 0;color:var(--muted);font-size:13px}
+    .field{margin-top:12px;display:grid;gap:8px}
+    input{
+      width:100%;
+      padding:10px 12px;
+      border-radius: 12px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color: var(--text);
+      outline:none;
+      font-weight:700;
+    }
+    .panel .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:12px}
+    .tag{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px;
+      border:1px solid var(--line); background: rgba(255,255,255,.05);
+      font-size:12px; color:var(--muted);
+    }
+    .dot{width:8px;height:8px;border-radius:999px;background:var(--bad);}
+    .dot.ok{background:var(--ok)}
+    .dot.warn{background:var(--warn)}
+    @media (min-width: 860px){
+      .card{grid-column: span 6;}
+      h1{font-size:20px}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <div class="row">
+        <div>
+          <h1>账号登录云端打卡（炁：≥6次 / 拳：1次）</h1>
+          <div class="sub">登录后：只能改自己的数据，但能看到全员进度（维/辛/宇）</div>
+        </div>
+        <div class="row" style="justify-content:flex-end">
+          <span class="tag"><span class="dot" id="cloudDot"></span><span id="cloudText">初始化中…</span></span>
+          <button class="btn secondary" id="loginBtn">登录/注册</button>
+          <button class="btn danger" id="logoutBtn" style="display:none">退出</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <div class="pill">
+          <span>日期</span>
+          <span style="font-weight:900" id="dateLabel">—</span>
+        </div>
+        <div class="pill">
+          <span style="opacity:.9">选择日期</span>
+          <input id="datePicker" type="date" style="background:transparent;color:var(--text);border:none;outline:none;font-weight:900;font-size:13px;">
+        </div>
+        <div class="row" style="justify-content:flex-end">
+          <button class="btn secondary" id="prevDay">前一天</button>
+          <button class="btn secondary" id="nextDay">后一天</button>
+          <button class="btn" id="todayBtn">回到今天</button>
+          <button class="btn danger" id="clearMineBtn" title="只清空你自己的当天记录">清空我当天</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <div class="pill">
+          <span style="opacity:.9">当前账号</span>
+          <span style="font-weight:900" id="whoami">未登录</span>
+        </div>
+        <div class="pill">
+          <span style="opacity:.9">我的身份</span>
+          <span style="font-weight:900" id="myUsername">—</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="grid" id="cards"></div>
+
+    <div style="margin-top:14px;color:var(--muted);font-size:12px;text-align:center;">
+      说明：已登录用户可看全员数据（团队透明），但只能修改自己的数据（RLS 限制）。
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- 登录/注册弹窗 -->
+    <div class="modal" id="authModal">
+      <div class="panel">
+        <h2>登录 / 注册</h2>
+        <p>用邮箱+密码登录。首次登录后需要绑定身份为 维 / 辛 / 宇（只能绑定一次）。</p>
+
+        <div class="field">
+          <div style="color:var(--muted);font-size:12px;">Email</div>
+          <input id="emailInput" placeholder="例如：wei@example.com" autocomplete="email">
+        </div>
+        <div class="field">
+          <div style="color:var(--muted);font-size:12px;">Password</div>
+          <input id="pwInput" type="password" placeholder="至少 6 位" autocomplete="current-password">
+        </div>
+
+        <div class="actions">
+          <button class="btn secondary" id="closeAuthBtn">关闭</button>
+          <button class="btn secondary" id="signupBtn">注册</button>
+          <button class="btn" id="signinBtn">登录</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 绑定身份弹窗 -->
+    <div class="modal" id="bindModal">
+      <div class="panel">
+        <h2>绑定身份（只能一次）</h2>
+        <p>请选择你是 维 / 辛 / 宇。被别人占用的身份将无法绑定。</p>
+        <div class="actions" style="justify-content:space-between">
+          <button class="btn" data-bind="维">我是 维</button>
+          <button class="btn" data-bind="辛">我是 辛</button>
+          <button class="btn" data-bind="宇">我是 宇</button>
+        </div>
+        <div class="actions">
+          <button class="btn secondary" id="bindCloseBtn">稍后再说</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ✅ 已内置你的 Supabase 配置（部署后不需要再填写）
+  const SUPABASE_URL = "https://gtzqggxjhgisdrcdfchn.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_y38GJql-OwNZF8yg3MACOg_kEbVDyXE";
+
+  const USERS = ["维","辛","宇"];
+  const PROJECTS = [
+    { key: "qi",   name: "炁",   target: 6, help: "每天至少打卡 6 次" },
+    { key: "quan", name: "拳",   target: 1, help: "每天打卡 1 次" }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const cards = $("cards");
+  const dateLabel = $("dateLabel");
+  const datePicker = $("datePicker");
+  const toastEl = $("toast");
+  const cloudDot = $("cloudDot");
+  const cloudText = $("cloudText");
+  const whoami = $("whoami");
+  const myUsernameEl = $("myUsername");
+  const loginBtn = $("loginBtn");
+  const logoutBtn = $("logoutBtn");
+
+  const authModal = $("authModal");
+  const bindModal = $("bindModal");
+
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toastEl.classList.remove("show"), 1500);
+  }
+  function setCloudStatus(state, msg){
+    if(state === "ok"){
+      cloudDot.className = "dot ok";
+      cloudText.textContent = msg || "已连接";
+    }else if(state === "warn"){
+      cloudDot.className = "dot warn";
+      cloudText.textContent = msg || "连接中…";
+    }else{
+      cloudDot.className = "dot";
+      cloudText.textContent = msg || "未连接";
+    }
+  }
+
+  function pad2(n){ return String(n).padStart(2,"0"); }
+  function toDateKey(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+  function parseDateKey(key){ const [y,m,d]=key.split("-").map(Number); return new Date(y,m-1,d); }
+  function fmtCN(key){
+    const d = parseDateKey(key);
+    const wk = "日一二三四五六"[d.getDay()];
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（周${wk}）`;
+  }
+  function clamp(n){ n=Number(n); if(!Number.isFinite(n)) return 0; return Math.max(0, Math.floor(n)); }
+  function statusFor(qi, quan){
+    const okQi = qi >= 6, okQuan = quan >= 1;
+    if(okQi && okQuan) return { cls:"ok", text:"达标" };
+    if((qi>0||quan>0) && !(okQi&&okQuan)) return { cls:"warn", text:"进行中" };
+    return { cls:"bad", text:"未开始" };
+  }
+
+  let supa = null;
+  let session = null;
+  let myUserId = null;
+  let myUsername = null;
+
+  let profilesCache = {}; // user_id -> username(维/辛/宇)
+  let dayRowsByUsername = { "维":null, "辛":null, "宇":null };
+
+  let currentKey = toDateKey(new Date());
+  let realtimeChannel = null;
+
+  function stopRealtime(){
+    if(realtimeChannel && supa){
+      supa.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+    }
+  }
+
+  async function initSupabase(){
+    try{
+      const { createClient } = window.supabase;
+      setCloudStatus("warn", "连接中…");
+      supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      // 试探性获取 session（不会报错）
+      const { data } = await supa.auth.getSession();
+      session = data.session || null;
+      myUserId = session?.user?.id || null;
+
+      setCloudStatus("ok", "已连接");
+      // 监听登录状态变化
+      supa.auth.onAuthStateChange(async () => {
+        await refreshAuthUI();
+      });
+
+      await refreshAuthUI();
+    }catch(e){
+      console.error(e);
+      setCloudStatus("bad", "初始化失败");
+      showToast("Supabase 初始化失败：检查 URL/Key 是否正确");
+    }
+  }
+
+  async function refreshAuthUI(){
+    if(!supa) return;
+
+    const { data } = await supa.auth.getSession();
+    session = data.session || null;
+    myUserId = session?.user?.id || null;
+
+    if(session){
+      whoami.textContent = session.user.email || "已登录";
+      loginBtn.style.display = "none";
+      logoutBtn.style.display = "";
+
+      await loadProfiles();
+      myUsername = await getMyUsername();
+      myUsernameEl.textContent = myUsername || "未绑定";
+
+      if(!myUsername){
+        bindModal.classList.add("show");
+      }else{
+        bindModal.classList.remove("show");
+      }
+
+      await loadDayFromCloud(currentKey);
+      startRealtime(currentKey);
+    }else{
+      whoami.textContent = "未登录";
+      myUsernameEl.textContent = "—";
+      loginBtn.style.display = "";
+      logoutBtn.style.display = "none";
+      stopRealtime();
+
+      profilesCache = {};
+      dayRowsByUsername = { "维":null, "辛":null, "宇":null };
+      render();
+    }
+  }
+
+  async function loadProfiles(){
+    const { data, error } = await supa.from("profiles").select("user_id, username");
+    if(error){
+      console.warn(error);
+      return;
+    }
+    profilesCache = {};
+    for(const r of (data||[])){
+      profilesCache[r.user_id] = r.username;
+    }
+  }
+
+  async function getMyUsername(){
+    if(!myUserId) return null;
+    const { data, error } = await supa
+      .from("profiles")
+      .select("username")
+      .eq("user_id", myUserId)
+      .maybeSingle();
+    if(error) return null;
+    return data?.username || null;
+  }
+
+  async function bindUsername(username){
+    if(!myUserId) return;
+    const { error } = await supa.from("profiles").insert({ user_id: myUserId, username });
+    if(error){
+      showToast("绑定失败：该身份可能已被占用");
+      console.warn(error);
+      return;
+    }
+    await loadProfiles();
+    myUsername = await getMyUsername();
+    myUsernameEl.textContent = myUsername || "未绑定";
+    bindModal.classList.remove("show");
+    showToast("绑定成功");
+    await loadDayFromCloud(currentKey);
+    startRealtime(currentKey);
+  }
+
+  async function loadDayFromCloud(dayKey){
+    if(!session) return;
+
+    const { data, error } = await supa
+      .from("checkins")
+      .select("day,user_id,qi,quan")
+      .eq("day", dayKey);
+
+    if(error){
+      console.warn(error);
+      showToast("读取失败：检查 RLS / 表名 / Realtime");
+      return;
+    }
+
+    dayRowsByUsername = { "维":null, "辛":null, "宇":null };
+
+    for(const row of (data||[])){
+      const uname = profilesCache[row.user_id];
+      if(uname && dayRowsByUsername.hasOwnProperty(uname)){
+        dayRowsByUsername[uname] = {
+          user_id: row.user_id,
+          qi: clamp(row.qi),
+          quan: clamp(row.quan)
+        };
+      }
+    }
+    render();
+  }
+
+  async function upsertMyRow(dayKey, patch){
+    if(!myUserId) return;
+    const payload = {
+      day: dayKey,
+      user_id: myUserId,
+      qi: patch.qi,
+      quan: patch.quan,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supa.from("checkins").upsert(payload, { onConflict: "day,user_id" });
+    if(error){
+      console.warn(error);
+      showToast("写入失败（你只能改自己的）");
+    }
+  }
+
+  function startRealtime(dayKey){
+    if(!supa || !session) return;
+    stopRealtime();
+
+    realtimeChannel = supa
+      .channel(`checkins_${dayKey}`)
+      .on("postgres_changes",
+        { event:"*", schema:"public", table:"checkins", filter:`day=eq.${dayKey}` },
+        async () => {
+          await loadProfiles();
+          await loadDayFromCloud(currentKey);
+        }
+      )
+      .on("postgres_changes",
+        { event:"*", schema:"public", table:"profiles" },
+        async () => {
+          await loadProfiles();
+          await loadDayFromCloud(currentKey);
+        }
+      )
+      .subscribe((status) => {
+        if(status === "SUBSCRIBED") showToast("已开启实时同步");
+      });
+  }
+
+  function render(){
+    dateLabel.textContent = fmtCN(currentKey);
+    datePicker.value = currentKey;
+    cards.innerHTML = "";
+
+    for(const uname of USERS){
+      const row = dayRowsByUsername[uname];
+      const qi = row?.qi ?? 0;
+      const quan = row?.quan ?? 0;
+      const st = statusFor(qi, quan);
+
+      const isMe = (myUsername === uname);
+      const disabledAttr = isMe ? "" : "disabled";
+      const disabledStyle = isMe ? "" : "style='opacity:.45; cursor:not-allowed'";
+
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="row">
+          <div class="user">
+            <div class="avatar">${uname}</div>
+            <div>
+              <div class="uname">用户 ${uname} ${isMe ? "（我）" : ""}</div>
+              <div class="chips">
+                <span class="status ${st.cls}">${st.text}</span>
+                <span class="chip">炁：<strong>${qi}</strong>/6</span>
+                <span class="chip">拳：<strong>${quan}</strong>/1</span>
+              </div>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">权限：<strong>${isMe ? "可编辑" : "只读"}</strong></span>
+          </div>
+        </div>
+
+        <div class="block">
+          ${PROJECTS.map(p => `
+            <div class="proj">
+              <div class="left">
+                <div class="pname">${p.name}</div>
+                <div class="hint">${p.help}</div>
+              </div>
+              <div class="right">
+                <div class="count">${(p.key==="qi"?qi:quan)} 次</div>
+                <button class="btn" data-action="plus" data-user="${uname}" data-proj="${p.key}" ${disabledAttr} ${disabledStyle}>+1</button>
+                <button class="btn secondary" data-action="minus" data-user="${uname}" data-proj="${p.key}" ${disabledAttr} ${disabledStyle}>-1</button>
+                <button class="btn secondary" data-action="set" data-user="${uname}" data-proj="${p.key}" ${disabledAttr} ${disabledStyle}>设置</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+      cards.appendChild(card);
+    }
+
+    cards.querySelectorAll("button[data-action]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const action = btn.dataset.action;
+        const uname = btn.dataset.user;
+        const proj = btn.dataset.proj;
+
+        if(myUsername !== uname){
+          showToast("你只能修改自己的数据");
+          return;
+        }
+        if(!session){
+          showToast("请先登录");
+          return;
+        }
+
+        const cur = dayRowsByUsername[uname] || { qi:0, quan:0 };
+
+        if(action === "plus") cur[proj] = clamp(cur[proj] + 1);
+        if(action === "minus") cur[proj] = clamp(cur[proj] - 1);
+        if(action === "set"){
+          const oldV = cur[proj];
+          const val = prompt(`${uname} - ${proj==="qi"?"炁":"拳"}（当前：${oldV}）输入新数值：`, String(oldV));
+          if(val === null) return;
+          cur[proj] = clamp(val);
+        }
+
+        dayRowsByUsername[uname] = { user_id: myUserId, qi: cur.qi, quan: cur.quan };
+        render();
+        await upsertMyRow(currentKey, cur);
+      });
+    });
+  }
+
+  function shiftDay(delta){
+    const d = parseDateKey(currentKey);
+    d.setDate(d.getDate() + delta);
+    currentKey = toDateKey(d);
+    onDayChanged();
+  }
+  async function onDayChanged(){
+    render();
+    if(session){
+      await loadProfiles();
+      await loadDayFromCloud(currentKey);
+      startRealtime(currentKey);
+    }
+  }
+
+  $("prevDay").addEventListener("click", () => shiftDay(-1));
+  $("nextDay").addEventListener("click", () => shiftDay(1));
+  $("todayBtn").addEventListener("click", () => { currentKey = toDateKey(new Date()); onDayChanged(); });
+  datePicker.addEventListener("change", () => { if(datePicker.value){ currentKey = datePicker.value; onDayChanged(); }});
+
+  $("clearMineBtn").addEventListener("click", async () => {
+    if(!session || !myUserId){
+      showToast("请先登录");
+      return;
+    }
+    if(!confirm(`确定清空你自己在 ${currentKey} 的记录吗？`)) return;
+    await upsertMyRow(currentKey, { qi:0, quan:0 });
+    showToast("已清空（你自己）");
+  });
+
+  // 登录/注册
+  loginBtn.addEventListener("click", () => authModal.classList.add("show"));
+  $("closeAuthBtn").addEventListener("click", () => authModal.classList.remove("show"));
+
+  $("signupBtn").addEventListener("click", async () => {
+    if(!supa){ showToast("云端未初始化"); return; }
+    const email = $("emailInput").value.trim();
+    const password = $("pwInput").value.trim();
+    if(!email || password.length < 6){ showToast("邮箱必填，密码至少6位"); return; }
+    const { error } = await supa.auth.signUp({ email, password });
+    if(error){ console.warn(error); showToast("注册失败：" + (error.message || "")); return; }
+    showToast("注册成功（如开启邮箱验证，请先验证）");
+  });
+
+  $("signinBtn").addEventListener("click", async () => {
+    if(!supa){ showToast("云端未初始化"); return; }
+    const email = $("emailInput").value.trim();
+    const password = $("pwInput").value.trim();
+    if(!email || !password){ showToast("请输入邮箱和密码"); return; }
+    const { error } = await supa.auth.signInWithPassword({ email, password });
+    if(error){ console.warn(error); showToast("登录失败：" + (error.message || "")); return; }
+    authModal.classList.remove("show");
+    showToast("登录成功");
+    await refreshAuthUI();
+  });
+
+  logoutBtn.addEventListener("click", async () => {
+    if(!supa) return;
+    await supa.auth.signOut();
+    showToast("已退出");
+    await refreshAuthUI();
+  });
+
+  // 绑定身份
+  bindModal.querySelectorAll("button[data-bind]").forEach(b => {
+    b.addEventListener("click", async () => {
+      await bindUsername(b.dataset.bind); // 维/辛/宇
+    });
+  });
+  $("bindCloseBtn").addEventListener("click", () => bindModal.classList.remove("show"));
+
+  // 启动
+  render();
+  initSupabase();
+})();
+</script>
+</body>
+</html>
